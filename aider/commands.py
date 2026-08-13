@@ -488,7 +488,7 @@ class Commands:
                 tokens = self.coder.main_model.token_count_for_image(fname)
             else:
                 # approximate
-                content = f"{relative_fname}\n{fence}\n" + content + "{fence}\n"
+                content = f"{relative_fname}\n{fence}\n" + content + f"{fence}\n"
                 tokens = self.coder.main_model.token_count(content)
             file_res.append((tokens, f"{relative_fname}", "/drop to remove"))
 
@@ -498,7 +498,7 @@ class Commands:
             content = self.io.read_text(fname)
             if content is not None and not is_image_file(relative_fname):
                 # approximate
-                content = f"{relative_fname}\n{fence}\n" + content + "{fence}\n"
+                content = f"{relative_fname}\n{fence}\n" + content + f"{fence}\n"
                 tokens = self.coder.main_model.token_count(content)
                 file_res.append((tokens, f"{relative_fname} (read-only)", "/drop to remove"))
 

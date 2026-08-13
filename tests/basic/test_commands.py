@@ -386,6 +386,58 @@ class TestCommands(TestCase):
         self.assertIn("foo.txt", console_output)
         self.assertIn("bar.txt", console_output)
 
+    def test_cmd_tokens_uses_closing_fence_for_files(self):
+        Path("example.txt").write_text("file body\n")
+
+        io = InputOutput(pretty=False, fancy_input=False, yes=True)
+        coder = Coder.create(self.GPT35, None, io)
+        commands = Commands(io, coder)
+        commands.cmd_add("example.txt")
+
+        with mock.patch.object(
+            coder.main_model,
+            "token_count",
+            return_value=1,
+        ) as token_count:
+            commands.cmd_tokens("")
+
+        file_content = next(
+            call.args[0]
+            for call in token_count.call_args_list
+            if isinstance(call.args[0], str) and "file body" in call.args[0]
+        )
+
+        self.assertEqual(
+            file_content,
+            "example.txt\n```\nfile body\n```\n",
+        )
+
+    def test_cmd_tokens_uses_closing_fence_for_read_only_files(self):
+        Path("ref.txt").write_text("read-only body\n")
+
+        io = InputOutput(pretty=False, fancy_input=False, yes=True)
+        coder = Coder.create(self.GPT35, None, io)
+        commands = Commands(io, coder)
+        commands.cmd_read_only("ref.txt")
+
+        with mock.patch.object(
+            coder.main_model,
+            "token_count",
+            return_value=1,
+        ) as token_count:
+            commands.cmd_tokens("")
+
+        file_content = next(
+            call.args[0]
+            for call in token_count.call_args_list
+            if isinstance(call.args[0], str) and "read-only body" in call.args[0]
+        )
+
+        self.assertEqual(
+            file_content,
+            "ref.txt\n```\nread-only body\n```\n",
+        )
+
     def test_cmd_add_from_subdir(self):
         repo = git.Repo.init()
         repo.config_writer().set_value("user", "name", "Test User").release()
