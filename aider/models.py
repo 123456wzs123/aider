@@ -248,6 +248,14 @@ class ModelInfoManager:
         return dict()
 
     def get_model_info(self, model):
+        # fork fix: user metadata overrides (--model-metadata-file /
+        # .aider.model.metadata.json) must win over litellm defaults even
+        # when litellm is already loaded; upstream's ordering lets an
+        # already-loaded litellm shadow them via the background-loader race.
+        local_info = self.local_model_metadata.get(model)
+        if local_info:
+            return local_info
+
         cached_info = self.get_model_from_cached_json_db(model)
 
         litellm_info = None
