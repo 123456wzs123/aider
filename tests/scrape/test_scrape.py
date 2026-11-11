@@ -7,6 +7,15 @@ from aider.io import InputOutput
 from aider.scrape import Scraper
 
 
+def _network_ok():
+    try:
+        import requests
+
+        return requests.get("https://example.com", timeout=10).status_code == 200
+    except Exception:
+        return False
+
+
 def _playwright_module_ok():
     try:
         import playwright  # noqa: F401
@@ -111,6 +120,7 @@ class TestScrape(unittest.TestCase):
         # Assert that print_error was never called
         mock_print_error.assert_not_called()
 
+    @unittest.skipUnless(_network_ok(), "external network unavailable")
     def test_scraper_print_error_not_called(self):
         # Create a Scraper instance with a mock print_error function
         mock_print_error = MagicMock()
