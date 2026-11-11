@@ -282,6 +282,21 @@ class AgentUI:
     @staticmethod
     def _result_summary(name: str, payload: dict) -> str:
         error = payload.get("error")
+        if name == "run_command":
+            if payload.get("skipped"):
+                return "declined by user"
+            if payload.get("timeout"):
+                return "timed out"
+            if payload.get("dry_run"):
+                return "dry-run"
+            output = (payload.get("output") or "").strip()
+            lines = [line.strip() for line in output.splitlines() if line.strip()]
+            head = lines[-1][:100] if lines else ""
+            code = payload.get("exit_code")
+            if code is None:
+                return str(error or "failed").splitlines()[0][:120]
+            return f"exit {code}" + (f" · {head}" if head else "")
+
         if not payload.get("ok"):
             if payload.get("skipped"):
                 return "declined by user"

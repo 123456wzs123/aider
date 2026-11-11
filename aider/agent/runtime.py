@@ -9,7 +9,10 @@ from pathlib import Path
 from .llm import ContextWindowError, LLMClient, parse_tool_arguments
 from .tools import ToolContext
 
-MAX_TOOL_RESULT_CHARS = 8000
+MAX_TOOL_RESULT_CHARS = 30_000
+MAX_TOOL_STRING_CHARS = 12_000
+MAX_TOOL_LIST_ITEMS = 60
+MAX_HISTORY_TOOL_CHARS = 8000
 TRUNCATE_HEAD = 6000
 TRUNCATE_TAIL = 2000
 DEFAULT_MAX_STEPS = 40
@@ -96,6 +99,7 @@ class AgentRuntime:
                 self._ui("warning", f"context window exceeded, dropped old turns: {exc}")
                 response = self.llm.complete(self.messages())
 
+            self._ui("assistant_end")
             self._track_usage(response)
             if not response.tool_calls:
                 self.blocks.append([{"role": "assistant", "content": response.content or ""}])
@@ -156,8 +160,32 @@ class AgentRuntime:
             payload = json.loads(raw)
         except json.JSONDecodeError:
             payload = {"ok": False, "error": raw}
+        payload = self._cap_payload(payload)
+        raw = json.dumps(payload, ensure_ascii=False)
+        if len(raw) > MAX_TOOL_RESULT_CHARS:
+            omitted = len(raw) - MAX_TOOL_RESULT_CHARS
+            raw = (
+                raw[:TRUNCATE_HEAD]
+                + f"\n...[truncated {omitted} chars]...\n"
+                + raw[-TRUNCATE_TAIL:]
+            )
         self._ui("tool_result", call.name, payload, duration)
         return raw, payload
+
+    @classmethod
+    def _cap_payload(cls, value):
+        if isinstance(value, dict):
+            return {key: cls._cap_payload(item) for key, item in value.items()}
+        if isinstance(value, list):
+            return [cls._cap_payload(item) for item in value[:MAX_TOOL_LIST_ITEMS]]
+        if isinstance(value, str) and len(value) > MAX_TOOL_STRING_CHARS:
+            omitted = len(value) - MAX_TOOL_STRING_CHARS
+            return (
+                value[: MAX_TOOL_STRING_CHARS - 4000]
+                + f"\n...[truncated {omitted} chars]...\n"
+                + value[-3000:]
+            )
+        return value
 
     @staticmethod
     def _collect_changes(tool_name, payload, changed: set[str]) -> None:
@@ -211,7 +239,7 @@ class AgentRuntime:
                 if message.get("role") != "tool":
                     continue
                 content = message.get("content") or ""
-                if len(content) <= MAX_TOOL_RESULT_CHARS:
+                if len(content) <= MAX_HISTORY_TOOL_CHARS:
                     continue
                 omitted = len(content) - TRUNCATE_HEAD - TRUNCATE_TAIL
                 message["content"] = (

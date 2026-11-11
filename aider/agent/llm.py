@@ -80,9 +80,15 @@ def _is_retryable(exc) -> bool:
     return any(marker in name for marker in markers)
 
 
-def parse_tool_arguments(raw: str) -> dict:
+def parse_tool_arguments(raw) -> dict:
+    if raw is None or raw == "":
+        return {}
+    if isinstance(raw, dict):
+        return raw
+    if not isinstance(raw, str):
+        raw = str(raw)
     try:
-        value = json.loads(raw or "{}")
+        value = json.loads(raw)
     except json.JSONDecodeError as exc:
         raise ValueError(f"tool arguments are not valid JSON: {exc}") from exc
     if not isinstance(value, dict):
@@ -106,13 +112,16 @@ class _ToolCallAccumulator:
                 continue
             name = _get(function, "name")
             if name:
+                name = str(name)
                 if not item["name"]:
                     item["name"] = name
                 elif name != item["name"]:
                     item["name"] += name
             arguments = _get(function, "arguments")
             if arguments:
-                item["arguments"] += arguments
+                if isinstance(arguments, dict):
+                    arguments = json.dumps(arguments, ensure_ascii=False)
+                item["arguments"] += str(arguments)
 
     def build(self) -> list[ToolCall]:
         calls = []
@@ -159,7 +168,6 @@ class LLMClient:
         use_stream = self.stream if stream is None else stream
         kwargs = {
             "model": self.model.name,
-            "messages": sanitize_for_utf8(messages),
             "stream": use_stream,
         }
         if self.model.use_temperature is not False:
@@ -176,6 +184,8 @@ class LLMClient:
         if self.model.extra_params:
             kwargs.update(self.model.extra_params)
         kwargs.setdefault("timeout", self.timeout)
+        # Messages go in last so extra_params can never replace them.
+        kwargs["messages"] = sanitize_for_utf8(messages)
         return kwargs
 
     def complete(self, messages, max_retries=3) -> LLMResponse:

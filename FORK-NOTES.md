@@ -41,6 +41,29 @@
 | #5809 | 2026-11-11 | 提示词语言指令 + /chat-language（自修：删死变量、补 9 测试） | 已合并 main |
 
 
+## Agent 壳：aider-agent（2026-11-11）
+
+> 定位：aider 本体是"一条消息 → 编辑 → 结束"的单轮工具；本壳在其编辑引擎上加了真正的
+> 工具循环，模型可以自主探索、跑测试、按失败迭代。第一期只做壳，不含 MCP/插件/skills/子 agent。
+
+- 入口：`aider-agent`（`aider.agent.cli:main`），也可 `python -m aider.agent`
+- 结构：`aider/agent/` 下 runtime / llm / tools / edit_engine / ui / prompt /
+  repo_context / permissions / session
+- 编辑：`edit_file` 工具 → `find_original_update_blocks` + `replace_most_similar_chunk`
+  （继承 #5967/#5947 修复），**每文件原子**应用，失败回传 did-you-mean
+- 工具：read_file / list_files / search_text / edit_file / write_file / run_command
+- 权限：读与编辑放行（路径必须在仓库内）；run_command 默认询问，`--yes` 放行；
+  `--dry-run` 全部只打印
+- 上下文：按"回合"裁剪，保留 system、repo map、首条任务；旧工具结果头尾截断
+- 仓库映射：复用 RepoMap；**缓存写到 `~/.aider-agent/tags-cache/`，不污染仓库**
+- 会话：`~/.aider-agent/sessions/<repo-hash>/*.json`，`--continue` 恢复最近一次
+- 常用：`aider-agent -m "修复测试" --yes --model openai/...`
+- 明确未做：MCP、插件、skills、子 agent、全屏 TUI、摘要压缩
+
+验证：75 个 agent 测试；真实模型（opencode-go `deepseek-v4.1-flash`）在临时仓库完成
+读文件 → 跑 pytest → 看到失败 → 编辑 → 重跑 → 自动提交 → 中文总结。样例提交消息：
+`运行测试并修复所有失败，让全部测试通过`。
+
 ## 已知问题清单
 
 1. **上游 CI 环境漂移**（2026-11-11 修复）：black 23.3 在新 Python 上崩溃（已升 25.1）、
@@ -51,6 +74,10 @@
 3. **上游 model 设置冻结在 2026-05**：新模型（如 opencode-go 的 deepseek-v4.1-flash）
    需在 `~/.aider.model.settings.yml` 里显式指定 `edit_format: diff`，否则 fallback
    到 whole 模式。本地 home 配置已处理。
+4. **aider-agent 的运行数据在 `~/.aider-agent/`**（history、sessions、tags-cache），
+   目前没有自动清理策略；长期使用需手动删旧 session。
+5. **run_command 在 Windows 走 cmd.exe**：模型若输出 bash 语法会先失败，需自行读错误
+   再修正；系统提示已声明平台 shell。
 
 ## 候选池
 

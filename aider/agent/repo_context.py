@@ -2,10 +2,16 @@
 
 from __future__ import annotations
 
+import hashlib
 import subprocess
 from pathlib import Path
 
 from .tools.files import iter_repo_files
+
+
+def _cache_dir(root: Path) -> Path:
+    key = hashlib.sha1(str(root).encode("utf-8")).hexdigest()[:12]
+    return Path.home() / ".aider-agent" / "tags-cache" / key
 
 
 class ConsoleIO:
@@ -93,7 +99,14 @@ class RepoContext:
             from aider.repomap import RepoMap
 
             if self._repo_map is None:
-                self._repo_map = RepoMap(
+                # Absolute TAGS_CACHE_DIR keeps the tree-sitter cache out of the
+                # user's repository (Path(root) / absolute == absolute).
+                local_repo_map = type(
+                    "LocalRepoMap",
+                    (RepoMap,),
+                    {"TAGS_CACHE_DIR": str(_cache_dir(self.root))},
+                )
+                self._repo_map = local_repo_map(
                     map_tokens=self.map_tokens,
                     root=str(self.root),
                     main_model=self.model,

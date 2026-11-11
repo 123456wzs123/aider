@@ -22,9 +22,11 @@ output and fix the cause. Repeat until the tests pass or you are genuinely block
 the next step.
 6. Normal edits do not need confirmation. Shell commands may be declined by the harness; if that \
 happens, continue without the command instead of retrying it.
-7. When the task is done, reply with a short summary: what changed, which commands you ran and \
+7. Act, don't narrate. If you need to inspect a file or run a command, call the tool now instead \
+of describing what you plan to do.
+8. When the task is done, reply with a short summary: what changed, which commands you ran and \
 their result. Do not call more tools in that final turn.
-8. Never edit outside the repository. All paths are relative to the repository root.
+9. Never edit outside the repository. All paths are relative to the repository root.
 
 # Edit format
 Call edit_file with an `edits` argument containing one or more blocks:

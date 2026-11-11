@@ -92,8 +92,17 @@ def _write_text(full: Path, text: str, newline: str) -> None:
     full.write_bytes(text.encode("utf-8"))
 
 
-def _diff_stats(before: str, after: str) -> tuple[int, int, str]:
-    lines = list(difflib.unified_diff(before.splitlines(), after.splitlines(), lineterm="", n=2))
+def _diff_stats(before: str, after: str, path: str = "") -> tuple[int, int, str]:
+    lines = list(
+        difflib.unified_diff(
+            before.splitlines(),
+            after.splitlines(),
+            fromfile=path or "before",
+            tofile=path or "after",
+            lineterm="",
+            n=2,
+        )
+    )
     added = sum(1 for line in lines if line.startswith("+") and not line.startswith("+++"))
     removed = sum(1 for line in lines if line.startswith("-") and not line.startswith("---"))
     return added, removed, "\n".join(lines)
@@ -193,7 +202,7 @@ def _apply_file(root: Path, rel: str, blocks: list[tuple[str, str]]) -> FileEdit
     except OSError as exc:
         return FileEditResult(path=rel, status="failed", error=f"cannot write file: {exc}")
 
-    added, removed, diff = _diff_stats(before, content)
+    added, removed, diff = _diff_stats(before, content, rel)
     return FileEditResult(
         path=rel,
         status="created" if created else "applied",

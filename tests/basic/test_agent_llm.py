@@ -182,6 +182,7 @@ class TestLLMClient(unittest.TestCase):
     def test_parse_tool_arguments(self):
         self.assertEqual(parse_tool_arguments('{"a": 1}'), {"a": 1})
         self.assertEqual(parse_tool_arguments(""), {})
+        self.assertEqual(parse_tool_arguments({"a": 1}), {"a": 1})
         with self.assertRaises(ValueError):
             parse_tool_arguments("{bad")
         with self.assertRaises(ValueError):

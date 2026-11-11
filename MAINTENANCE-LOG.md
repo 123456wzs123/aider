@@ -158,3 +158,43 @@
 - **验证结果**：新增 9 用例全过；black/flake8 全净；双 venv 全量通过（见下）。
 - **行为变化说明**：默认不再向系统提示注入 "Reply in ..."，模型将跟随用户语言；
   需要强制语言时用 `--chat-language Chinese` 或会话内 `/chat-language zh_CN`。
+
+### 2026-11-11 — 新增 agent 壳：aider-agent（工具循环 + 终端 UI）
+
+- **试图解决**：aider 本体是单轮"消息 → 编辑 → 结束"，模型不能自主看代码、跑测试、
+  根据失败继续修，实际改代码能力弱且不灵活。目标是在**不改现有 coder 代码**的前提下，
+  用 aider 的编辑引擎撑起一个真正的工具循环 CLI（第一期不含 MCP/插件/skills/子 agent）。
+- **解决方式**：新增 `aider/agent/` 子包：
+  - `edit_engine`：直接复用 `find_original_update_blocks` / `replace_most_similar_chunk`
+    （继承 #5967/#5947 修复），按文件分组、内存累进、**每文件原子写**；失败用
+    `find_similar_lines` + 字符级窗口比较给出 did-you-mean；所有路径 resolve 后必须
+    在仓库内
+  - `llm`：自建多工具客户端（`Model.send_completion` 只支持单 function 且强制
+    tool_choice）。流式按 index 合并 `delta.tool_calls`，复用 `Model.extra_params`
+    （opencode-go 的 base_url/header）、`sanitize_for_utf8`、600s 超时；429/5xx 退避重试，
+    `ContextWindowError` 交给 runtime 裁剪重试
+  - `tools`：read_file / list_files / search_text / edit_file / write_file / run_command；
+    search 优先 rg、缺失时纯 Python 兜底；输出全部有上限
+  - `runtime`：LLM → tool_calls → 观察 → 再问；内部按"回合"保存消息，裁剪时整轮丢弃，
+    保证 assistant(tool_calls) 与 tool 结果不拆散；编辑成功后自动
+    `GitRepo.commit(fnames, message, aider_edits=True)`（确定性消息，不额外调 LLM）
+  - `ui`：Rich 面板 + 流式 Markdown（复用 `mdstream.MarkdownStream`）、工具卡片、
+    红绿 diff、耗时/上下文状态行、命令审批面板；非 UTF-8 终端降级 ASCII 字形，
+    `--plain`/非 TTY 退化为一行一事件
+  - `cli`：`aider-agent` 入口（复用 `get_git_root` / `load_dotenv_files` /
+    `register_models` / `register_litellm_models`，与 aider 共享模型配置）；
+    RepoMap 用绝对 `TAGS_CACHE_DIR` 把缓存放到 `~/.aider-agent/tags-cache/`，
+    **不在用户仓库里留 `.aider.tags.cache.*`**
+  - 会话 JSON 存 `~/.aider-agent/sessions/<repo-hash>/`，`--continue` 恢复
+- **验证结果**：
+  - 新增 75 个 agent 测试全绿（编辑引擎 16、LLM 11、工具 23、运行时 14、CLI/UI 12 中的
+    重叠计一次），black/flake8 干净
+  - 双 venv 全量回归：见下方记录
+  - 真实模型冒烟（opencode-go `openai/deepseek-v4.1-flash`，临时 git 仓库，带一个失败
+    测试）：模型自主 `read_file` ×2 → `run_command(python -m pytest -q)` 看到 1 failed →
+    `edit_file` 把 `a - b` 改成 `a + b` → 自动提交（提交信息为中文任务名）→ 重跑得到
+    `2 passed` → 中文总结。第二次冒烟确认：命令失败显示 `exit 1 · 1 failed, 1 passed`、
+    diff 头带文件名、仓库内无 tags cache 残留
+- **边界**：run_command 默认需审批（`--yes` 放行），`--dry-run` 全部只打印；子 agent、
+  MCP、插件、skills、全屏 TUI、摘要压缩留到第二期。
+

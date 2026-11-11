@@ -100,6 +100,39 @@ class TestUI(unittest.TestCase):
         rich_ui = AgentUI(plain=False, ascii_only=False)
         self.assertEqual(rich_ui.glyphs["ok"], "✓")
 
+    def test_rich_render_has_color_and_diff(self):
+        from rich.console import Console
+
+        buffer = io.StringIO()
+        console = Console(file=buffer, force_terminal=True, width=100, color_system="standard")
+        ui = AgentUI(console=console, plain=False, ascii_only=False)
+
+        ui.header("repo", "main", "model", "search/replace", True, "ask")
+        ui.tool_call("edit_file", {"edits": "a.py\n<<<<<<< SEARCH\nx\n"})
+        ui.tool_result(
+            "edit_file",
+            {
+                "ok": True,
+                "files": [
+                    {
+                        "path": "a.py",
+                        "status": "applied",
+                        "added": 1,
+                        "removed": 1,
+                        "diff": "@@ -1 +1 @@\n-x = 1\n+x = 2",
+                    }
+                ],
+            },
+            duration=0.2,
+        )
+
+        output = buffer.getvalue()
+        self.assertIn("aider-agent", output)
+        self.assertIn("\x1b[", output)
+        self.assertIn("a.py applied", output)
+        self.assertIn("x = 2", output)
+        self.assertIn("0.2s", output)
+
 
 class TestRepoContext(unittest.TestCase):
     def test_non_git_fallback_and_map(self):

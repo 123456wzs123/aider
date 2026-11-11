@@ -263,6 +263,18 @@ class TestRuntime(unittest.TestCase):
         self.assertEqual(runtime.messages()[1]["content"], "old")
         self.assertEqual(runtime.load_blocks([{"role": "user"}]), 0)
 
+    def test_payload_cap_keeps_json_shape(self):
+        runtime, _, _ = self.make([])
+
+        capped = runtime._cap_payload(
+            {"ok": True, "content": "x" * 50_000, "matches": [{"line": i} for i in range(100)]}
+        )
+
+        self.assertLess(len(capped["content"]), 20_000)
+        self.assertIn("truncated", capped["content"])
+        self.assertEqual(len(capped["matches"]), 60)
+        json.dumps(capped)
+
 
 class TestSessionStore(unittest.TestCase):
     def setUp(self):
