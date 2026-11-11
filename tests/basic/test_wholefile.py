@@ -354,7 +354,6 @@ Do this:
         # check for one trailing newline
         self.assertEqual(content, new_content + "\n")
 
-
     def test_nested_markdown_code_blocks(self):
         """Test that nested code blocks in markdown files are preserved."""
         sample_file = "README.md"
@@ -387,12 +386,12 @@ That's it!
 """
 
         edited_files = coder.apply_updates()
-        
+
         self.assertIn("README.md", edited_files)
-        
+
         with open(sample_file, "r") as f:
             content = f.read()
-        
+
         # The entire content should be preserved, including nested blocks
         self.assertIn("# Installation", content)
         self.assertIn("```bash", content)
@@ -400,7 +399,7 @@ That's it!
         self.assertIn("```yaml", content)
         self.assertIn("autoload: true", content)
         self.assertIn("That's it!", content)
-        
+
         # These should NOT become files
         self.assertFalse(Path("pip install talklight").exists())
         self.assertFalse(Path("autoload: true").exists())
@@ -435,11 +434,11 @@ echo "done"
 ```
 """
 
-        edited_files = coder.apply_updates()
-        
+        coder.apply_updates()
+
         with open(sample_file, "r") as f:
             content = f.read()
-        
+
         # All nested blocks should be preserved
         self.assertIn("```python", content)
         self.assertIn('print("hello")', content)
@@ -470,11 +469,11 @@ More text
 ```
 """
 
-        edited_files = coder.apply_updates()
-        
+        coder.apply_updates()
+
         with open(sample_file, "r") as f:
             content = f.read()
-        
+
         # With current implementation, plain fences close/open at depth 0
         # This is a known limitation but better than the old behavior
         self.assertIn("Some text", content)

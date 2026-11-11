@@ -34,7 +34,7 @@ class WholeFileCoder(Coder):
         fname_source = None
         new_lines = []
         nested_depth = 0  # Track nested code blocks inside file content
-        
+
         for i, line in enumerate(lines):
             if line.startswith(self.fence[0]) or line.startswith(self.fence[1]):
                 if fname is not None:
@@ -43,7 +43,7 @@ class WholeFileCoder(Coder):
                     stripped = line.strip()
                     fence_len = len(self.fence[0])
                     has_language_tag = len(stripped) > fence_len
-                    
+
                     if has_language_tag:
                         # This opens a nested block, don't close the file
                         nested_depth += 1
