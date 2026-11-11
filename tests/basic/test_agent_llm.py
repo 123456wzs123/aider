@@ -1,11 +1,7 @@
 import unittest
 from types import SimpleNamespace
 
-from aider.agent.llm import (
-    ContextWindowError,
-    LLMClient,
-    parse_tool_arguments,
-)
+from aider.agent.llm import ContextWindowError, LLMClient, parse_tool_arguments
 
 
 def make_model(**overrides):
