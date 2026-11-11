@@ -102,6 +102,13 @@
   - `tests/scrape/test_scrape.py`：`_playwright_ok()`（模块+chromium 探测）与
     `_playwright_module_ok()` 装饰三个依赖测试；`"Example Domain"` 断言改为
     大小写无关的 `"example"`（IANA 改版后仍稳定）
+  - 第二轮 CI 暴露 Windows 3.13 上 `test_scraper_print_error_not_called`
+    （外网抓取）偶发失败 → 增加 `_network_ok()` 探测，离线环境跳过；
+    经排查 3.10 的失败只是 fail-fast 被 3.13 连带取消，非独立问题
+  - black rev 升级引发 10 个文件重排（上游从未用新版 black 格式化过）→
+    本地 `black --line-length 100 --preview .` 一次性对齐，另手工折行
+    `benchmark/refactor_tools.py:173` 的超长 f-string（black 不拆字符串，
+    原 `noqa` 在字符串外无效）
 - **验证结果**：本地 `pytest tests/scrape tests/basic/test_voice.py
   tests/basic/test_llm.py` → 27 passed, 4 skipped（skip 均为环境探测，符合预期）；
   推送后 CI 复验（见下方 CI 记录）
