@@ -24,18 +24,21 @@ class SessionStore:
         self.directory = session_dir(root, base_dir)
         self.path = Path(path) if path else None
 
+    @classmethod
+    def _next_name(cls) -> str:
+        cls._counter += 1
+        now = time.time_ns()
+        stamp = time.strftime("%Y%m%d-%H%M%S", time.localtime(now // 1_000_000_000))
+        # Counter is part of the name so lexicographic order == save order
+        # even when the wall clock has coarse resolution.
+        return f"{stamp}-{now % 1_000_000_000:09d}-{cls._counter:06d}.json"
+
     def save(self, blocks, model=None, extra=None) -> Path:
         self.directory.mkdir(parents=True, exist_ok=True)
         if self.path is None:
-            now = time.time_ns()
-            stamp = (
-                time.strftime("%Y%m%d-%H%M%S", time.localtime(now // 1_000_000_000))
-                + f"-{now % 1_000_000_000:09d}"
-            )
-            self.path = self.directory / f"{stamp}.json"
+            self.path = self.directory / self._next_name()
             while self.path.exists():
-                SessionStore._counter += 1
-                self.path = self.directory / f"{stamp}-{SessionStore._counter:03d}.json"
+                self.path = self.directory / self._next_name()
         payload = {
             "version": SESSION_VERSION,
             "root": self.root,
