@@ -5,12 +5,14 @@ import subprocess
 import sys
 
 REPO = "Aider-AI/aider"
+# fmt: off
 PATCHED = {
     5974, 5967, 4987, 5950, 5964, 5966,  # 首批
     5947, 5565, 5939, 5945, 5915, 5952,  # 第二轮
     3756,  # 已评估，不采用
     5782, 5809,  # 第二轮审查后拒绝/暂缓
 }
+# fmt: on
 
 
 def ci_state(rollup):
