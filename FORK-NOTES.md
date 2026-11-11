@@ -60,9 +60,10 @@
 - 常用：`aider-agent -m "修复测试" --yes --model openai/...`
 - 明确未做：MCP、插件、skills、子 agent、全屏 TUI、摘要压缩
 
-验证：75 个 agent 测试；真实模型（opencode-go `deepseek-v4.1-flash`）在临时仓库完成
+验证：76 个 agent 测试；真实模型（opencode-go `deepseek-v4.1-flash`）在临时仓库完成
 读文件 → 跑 pytest → 看到失败 → 编辑 → 重跑 → 自动提交 → 中文总结。样例提交消息：
-`运行测试并修复所有失败，让全部测试通过`。
+`运行测试并修复所有失败，让全部测试通过`。双 venv 全量 593/594 passed；CI
+pre-commit + Ubuntu/Windows 3.10–3.14 全绿（提交 `6575e93`）。
 
 ## 已知问题清单
 
