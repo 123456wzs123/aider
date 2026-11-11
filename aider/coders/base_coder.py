@@ -1066,10 +1066,10 @@ class Coder:
         """
         if not lang_code:
             return None
-         
+
         # if the user specifies "auto"
-        if lang_code.strip().lower()=="auto":
-            return "auto"    
+        if lang_code.strip().lower() == "auto":
+            return "auto"
 
         if lang_code.upper() in ("C", "POSIX"):
             return None
@@ -1078,7 +1078,7 @@ class Coder:
             parts = lang_code.split("_")
             if parts[0].isalpha() and len(parts[0]) > 2 and parts[0][0].isupper():
                 return parts[0]
-            
+
         # Probably already a language name
         if (
             len(lang_code) > 3
@@ -1200,8 +1200,6 @@ class Coder:
         if self.main_model.overeager:
             final_reminders.append(self.gpt_prompts.overeager_prompt)
 
-        user_lang = self.get_user_language()
-
         # apply the strict language directive only when explicitly requested by the user
         if self.chat_language:
             norm_lang = self.normalize_language(self.chat_language)
@@ -1215,7 +1213,7 @@ class Coder:
             # If the user has not explicitly set a chat language:
             # Allow the model to respond in the user's language.
             language = "the same language they are using"
-        
+
         platform_text = self.get_platform_info()
 
         if self.suggest_shell_commands:

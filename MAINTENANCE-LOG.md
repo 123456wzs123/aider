@@ -136,10 +136,25 @@
 - **审查后拒绝**：
   - **#5782**：与 #5945 修同一问题（litellm 新异常），方案更粗暴（strict 才检查），
     #5945 更完整 → 二选一取 #5945
-  - **#5809**：阻止系统强制英文 + `/chat-language` 命令，方向很好但**代码不完整**：
-    `self.chat_language` 从未初始化（运行时 AttributeError），`user_lang` 变死变量
-    → 等作者修复后再评估，记入 FORK-NOTES 候选池
 - **lint 修复**：#5947 的测试代码带 trailing whitespace 与未使用变量
   （`edited_files`）→ black 25.1 重排、未使用赋值清理（仅新测试两处，精确按行号，
   避免误伤旧测试的同名变量）
 - **验证结果**：flake8 7.1.0 / black 25.1 --check 全净；双 venv 全量见下。
+
+### 2026-11-11 — #5809 自修采纳：提示词语言指令 + /chat-language
+
+- **试图解决**：上游默认在系统提示里无条件追加 "Reply in {locale 语言}"，会把模型
+  回复强制成英文/系统语言，中文用户每次都要手动纠正。#5809 的方向正确（只在用户
+  显式要求时强制语言，否则让模型跟随用户语言），但提交的代码有缺陷。
+- **解决方式**：cherry-pick `8535e1d55`（PR #5809，作者 Weijian Ma）后自行修复：
+  - 复审澄清：`chat_language` 基础设施（类属性 / `__init__` 参数 / `--chat-language`
+    CLI）上游本就存在，初审判定的"未初始化"是在 `main...try/pr-5809` diff 视图
+    里把上下文行误读为新增行所致——特此更正
+  - 真实缺陷只剩：`fmt_system_prompt` 中的死变量 `user_lang = self.get_user_language()`
+    （get_user_language 为纯读取、无副作用，也不再有调用处）→ 删除
+  - 原 PR 无测试 → 新增 `tests/basic/test_chat_language.py`（9 个用例）：默认 None、
+    `normalize_language` 的 auto / Windows locale / zh_CN fallback、显式语言与 auto
+    的提示词断言、`/chat-language` 命令的设置行为
+- **验证结果**：新增 9 用例全过；black/flake8 全净；双 venv 全量通过（见下）。
+- **行为变化说明**：默认不再向系统提示注入 "Reply in ..."，模型将跟随用户语言；
+  需要强制语言时用 `--chat-language Chinese` 或会话内 `/chat-language zh_CN`。
