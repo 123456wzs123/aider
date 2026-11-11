@@ -1,6 +1,6 @@
-from io import StringIO
 import os
 import threading
+from io import StringIO
 from unittest import TestCase
 from unittest.mock import MagicMock, patch
 

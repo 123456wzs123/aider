@@ -36,7 +36,14 @@
 
 ## 已知问题清单
 
-（暂无）
+1. **上游 CI 环境漂移**（2026-11-11 修复）：black 23.3 在新 Python 上崩溃（已升 25.1）、
+   Playwright 不支持 ubuntu26.04 runner（已加 skipif）、CI 无音频服务（已加 skipif）、
+   example.com 内容改版（断言已稳健化）。详见 MAINTENANCE-LOG。
+2. **Docker Build Test 失败**（待查）：首次 CI 中 Docker workflow 失败，未深入排查；
+   该 workflow 与代码质量无直接关系，暂时记录不阻塞。
+3. **上游 model 设置冻结在 2026-05**：新模型（如 opencode-go 的 deepseek-v4.1-flash）
+   需在 `~/.aider.model.settings.yml` 里显式指定 `edit_format: diff`，否则 fallback
+   到 whole 模式。本地 home 配置已处理。
 
 ## 候选池
 

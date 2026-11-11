@@ -8,6 +8,19 @@ import pytest
 from aider.voice import SoundDeviceError, Voice
 
 
+def _audio_ok():
+    """CI runners have no audio service; PortAudio init fails there."""
+    try:
+        import sounddevice  # noqa: F401
+
+        return True
+    except Exception:
+        return False
+
+
+pytestmark = pytest.mark.skipif(not _audio_ok(), reason="no audio device/PortAudio available")
+
+
 # Mock the entire sounddevice module
 @pytest.fixture
 def mock_sounddevice():

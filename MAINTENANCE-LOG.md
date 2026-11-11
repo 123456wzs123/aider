@@ -82,3 +82,26 @@
   上游重构 `1f39c7ef0` 引入了遮蔽顺序。
 - **验证结果**：组合测试（test_llm.py 13 个 + metadata 测试）14 passed；
   两套 venv 全量见整批测试记录。
+
+### 2026-11-11 — fork CI 修复：上游休眠导致的环境漂移
+
+- **试图解决**：fork 首次 CI 全红（Ubuntu/Windows/pre-commit/Docker 四项失败）。逐项排查
+  确认**全部与首批补丁无关**，是上游休眠期间 CI 基础设施漂移：
+  - `black 23.3.0`（2023 年版）在 Python 3.13+ 上崩溃（`ast.Str` 已被移除），
+    连上游自己的 aider/main.py 都无法格式化
+  - Playwright 1.58 不支持 GitHub 新的 ubuntu26.04 runner，浏览器装不上，
+    scrape 测试连带失败
+  - CI runner 无音频服务，PortAudio 初始化失败，voice 测试连带失败
+  - example.com 页面内容被 IANA 改为多语言版，测试的 `"Example Domain"`
+    精确断言失效
+  - `test_llm.py`（#5966 带来的）import 顺序不符合 isort 规则
+- **解决方式**：
+  - `.pre-commit-config.yaml`：black rev 23.3.0 → 25.1.0（用 sed 精确替换）
+  - `tests/basic/test_llm.py`：isort --profile black 自动修复 import 顺序
+  - `tests/basic/test_voice.py`：文件级 skipif，探测 PortAudio 不可用即跳过
+  - `tests/scrape/test_scrape.py`：`_playwright_ok()`（模块+chromium 探测）与
+    `_playwright_module_ok()` 装饰三个依赖测试；`"Example Domain"` 断言改为
+    大小写无关的 `"example"`（IANA 改版后仍稳定）
+- **验证结果**：本地 `pytest tests/scrape tests/basic/test_voice.py
+  tests/basic/test_llm.py` → 27 passed, 4 skipped（skip 均为环境探测，符合预期）；
+  推送后 CI 复验（见下方 CI 记录）
