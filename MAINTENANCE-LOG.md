@@ -112,3 +112,34 @@
 - **验证结果**：本地 `pytest tests/scrape tests/basic/test_voice.py
   tests/basic/test_llm.py` → 27 passed, 4 skipped（skip 均为环境探测，符合预期）；
   推送后 CI 复验（见下方 CI 记录）
+
+### 2026-11-11 — 第二轮补丁：编辑质量 ×2、Windows 兼容 ×3、小修 ×1
+
+- **试图解决**：继续从上游 PR 池按"编辑质量 / 兼容性"优先方向推进，覆盖上一轮未触及
+  的模块（whole-file 解析、Windows 跨盘符、litellm 异常演进、legacy 控制台编码）。
+- **解决方式**（全部 cherry-pick，零冲突）：
+  - **#5947** `f1b20c285`（作者 ivanrxm）：whole-file 模式用嵌套深度跟踪，内容里的
+    ```python/```javascript 等嵌套代码块不再被误判为文件块结束、把文件截断
+  - **#5565** `45ff4a815`（作者 unknown）：`/tokens` 里两处 `"{fence}"` 漏了 f 前缀，
+    估算 token 时 fence 没有被插值 → 已修
+  - **#5939** `5be1c57b0`（作者 mrhy7176）：`os.path.commonpath` 跨盘符（C:\ vs D:\）
+    抛的是 ValueError 而非 OSError，未捕获会崩溃 → 捕获范围补上，新增
+    test_find_common_root.py
+  - **#5945** `2ef6cf27d`（作者 unknown）：litellm 每次发版都可能新增异常类型，
+    老代码在启动时不识别就 ValueError 崩溃 → 改为默认 warn 并继续
+    （`_load(strict=False)`，CI/开发环境可开 strict 保持严格检查）
+  - **#5915** `f7f71a681`（作者 mrhy7176）：`.aider.conf.yml` 候选里若混入目录路径，
+    只保留真实文件（`is_file()` 过滤）
+  - **#5952** `c0b87e2af` + `094b3860e`（作者 inchang-ing）：legacy Windows 控制台
+    （cp1252 等）渲染模型输出时 rich 抛 UnicodeEncodeError → `_tool_message` 与
+    `assistant_output` 加 ASCII 兜底重打，与第一轮 #4987（请求侧）互补
+- **审查后拒绝**：
+  - **#5782**：与 #5945 修同一问题（litellm 新异常），方案更粗暴（strict 才检查），
+    #5945 更完整 → 二选一取 #5945
+  - **#5809**：阻止系统强制英文 + `/chat-language` 命令，方向很好但**代码不完整**：
+    `self.chat_language` 从未初始化（运行时 AttributeError），`user_lang` 变死变量
+    → 等作者修复后再评估，记入 FORK-NOTES 候选池
+- **lint 修复**：#5947 的测试代码带 trailing whitespace 与未使用变量
+  （`edited_files`）→ black 25.1 重排、未使用赋值清理（仅新测试两处，精确按行号，
+  避免误伤旧测试的同名变量）
+- **验证结果**：flake8 7.1.0 / black 25.1 --check 全净；双 venv 全量见下。
