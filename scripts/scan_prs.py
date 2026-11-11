@@ -22,9 +22,22 @@ def ci_state(rollup):
 def main():
     top = int(sys.argv[1]) if len(sys.argv) > 1 else 30
     r = subprocess.run(
-        ["gh", "pr", "list", "--repo", REPO, "--state", "open", "--limit", "200",
-         "--json", "number,title,updatedAt,additions,deletions,changedFiles,statusCheckRollup"],
-        capture_output=True, text=True)
+        [
+            "gh",
+            "pr",
+            "list",
+            "--repo",
+            REPO,
+            "--state",
+            "open",
+            "--limit",
+            "200",
+            "--json",
+            "number,title,updatedAt,additions,deletions,changedFiles,statusCheckRollup",
+        ],
+        capture_output=True,
+        text=True,
+    )
     if r.returncode != 0:
         sys.exit(r.stderr)
     prs = json.loads(r.stdout)
@@ -35,9 +48,11 @@ def main():
             continue
         n += 1
         c = ci_state(p.get("statusCheckRollup"))
-        print(f"#{p['number']} [{p['updatedAt'][:10]}] {c:<9}"
-              f" +{p['additions']}/-{p['deletions']} ({p.get('changedFiles', 0)}f)"
-              f" {p['title'][:60]}")
+        print(
+            f"#{p['number']} [{p['updatedAt'][:10]}] {c:<9}"
+            f" +{p['additions']}/-{p['deletions']} ({p.get('changedFiles', 0)}f)"
+            f" {p['title'][:60]}"
+        )
     print(f"shown {n} of {len(prs)} scanned (recently updated first)")
 
 

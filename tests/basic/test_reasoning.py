@@ -586,11 +586,17 @@ End"""
 
         # Mock the completion response
         mock_response = MagicMock()
-        mock_response.choices = [MagicMock(message=MagicMock(content="""Here is some text
+        mock_response.choices = [
+            MagicMock(
+                message=MagicMock(
+                    content="""Here is some text
 <think>
 This reasoning should be removed
 </think>
-And this text should remain"""))]
+And this text should remain"""
+                )
+            )
+        ]
         mock_completion.return_value = mock_response
 
         messages = [{"role": "user", "content": "test"}]

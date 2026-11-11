@@ -146,9 +146,7 @@ class TestLazyLiteLLM(TestCase):
 
     @patch("aider.utils.run_install", return_value=(False, "Failed to connect to index"))
     @patch("aider.llm._import_litellm")
-    def test_missing_aiohttp_prompt_yes_installation_fails(
-        self, mock_import, mock_run_install
-    ):
+    def test_missing_aiohttp_prompt_yes_installation_fails(self, mock_import, mock_run_install):
         err = ModuleNotFoundError("No module named 'aiohttp'", name="aiohttp")
         mock_import.side_effect = err
 
@@ -169,9 +167,7 @@ class TestLazyLiteLLM(TestCase):
 
     @patch("aider.utils.run_install", return_value=(True, "Installed"))
     @patch("aider.llm._import_litellm")
-    def test_missing_aiohttp_retry_fails_without_infinite_loop(
-        self, mock_import, mock_run_install
-    ):
+    def test_missing_aiohttp_retry_fails_without_infinite_loop(self, mock_import, mock_run_install):
         err = ModuleNotFoundError("No module named 'aiohttp'", name="aiohttp")
         retry_err = ModuleNotFoundError("No module named 'litellm'", name="litellm")
         mock_import.side_effect = [err, retry_err]
@@ -194,9 +190,7 @@ class TestLazyLiteLLM(TestCase):
 
     @patch("aider.utils.run_install", return_value=(True, "Installed"))
     @patch("aider.llm._import_litellm")
-    def test_missing_aiohttp_retry_fails_with_aiohttp_error(
-        self, mock_import, mock_run_install
-    ):
+    def test_missing_aiohttp_retry_fails_with_aiohttp_error(self, mock_import, mock_run_install):
         err = ModuleNotFoundError("No module named 'aiohttp'", name="aiohttp")
         retry_err = ModuleNotFoundError("No module named 'aiohttp'", name="aiohttp")
         mock_import.side_effect = [err, retry_err]

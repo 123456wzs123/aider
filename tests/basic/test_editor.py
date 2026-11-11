@@ -94,10 +94,12 @@ def test_pipe_editor_with_fake_editor():
         log_path_escaped = log_path.replace("\\", "\\\\")
 
     with tempfile.NamedTemporaryFile(mode="w", suffix=".py", delete=False) as f:
-        f.write(f"""import sys
+        f.write(
+            f"""import sys
 with open(r"{log_path_escaped}", "w") as f:
     f.write(" ".join(sys.argv))
-""")
+"""
+        )
         script_path = f.name
 
     try:
