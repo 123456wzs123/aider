@@ -199,3 +199,12 @@
 - **边界**：run_command 默认需审批（`--yes` 放行），`--dry-run` 全部只打印；子 agent、
   MCP、插件、skills、全屏 TUI、摘要压缩留到第二期。
 
+### 2026-11-11 — CI 加固：apt 步骤不再阻塞测试
+
+- **试图解决**：Ubuntu runner 偶发 DNS 失败（`archive.ubuntu.com` / `security.ubuntu.com`
+  无法解析），`Install system dependencies` 以 exit 100 失败，fail-fast 取消整个 matrix，
+  测试根本没跑就被判红。
+- **解决方式**：`.github/workflows/ubuntu-tests.yml` 的该步骤加 `continue-on-error: true`；
+  voice 测试已有 PortAudio 探测会自行 skip，缺库不会造成假失败。
+- **验证结果**：以新提交的 CI 结果为准（见下）。
+
