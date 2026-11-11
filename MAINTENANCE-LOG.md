@@ -187,9 +187,10 @@
     **不在用户仓库里留 `.aider.tags.cache.*`**
   - 会话 JSON 存 `~/.aider-agent/sessions/<repo-hash>/`，`--continue` 恢复
 - **验证结果**：
-  - 新增 75 个 agent 测试全绿（编辑引擎 16、LLM 11、工具 23、运行时 14、CLI/UI 12 中的
-    重叠计一次），black/flake8 干净
-  - 双 venv 全量回归：见下方记录
+  - 新增 76 个 agent 测试全绿（编辑引擎、LLM、工具、运行时、CLI/UI 五组），
+    black / flake8 / isort 干净
+  - 双 venv 全量回归：**3.13 = 593 passed, 5 skipped, 67 subtests passed（5:03）**；
+    **3.14 = 594 passed, 5 skipped, 67 subtests passed（4:36）**；退出码均 0
   - 真实模型冒烟（opencode-go `openai/deepseek-v4.1-flash`，临时 git 仓库，带一个失败
     测试）：模型自主 `read_file` ×2 → `run_command(python -m pytest -q)` 看到 1 failed →
     `edit_file` 把 `a - b` 改成 `a + b` → 自动提交（提交信息为中文任务名）→ 重跑得到

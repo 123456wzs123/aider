@@ -66,7 +66,10 @@ def resolve_path(root, rel: str) -> Path:
     if candidate.is_absolute():
         raise EditPathError(f"refusing absolute path: {rel}")
     root = Path(root).resolve()
-    full = (root / candidate).resolve()
+    try:
+        full = (root / candidate).resolve()
+    except OSError as exc:
+        raise EditPathError(f"cannot resolve path: {rel} ({exc})") from exc
     try:
         full.relative_to(root)
     except ValueError:
