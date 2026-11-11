@@ -32,6 +32,7 @@ class AgentRuntime:
         client=None,
         tool_context=None,
         repo_map=None,
+        stream=True,
     ):
         self.model = model
         self.registry = registry
@@ -48,7 +49,9 @@ class AgentRuntime:
         self.blocks: list[list[dict]] = []
         self.usage = {"prompt_tokens": 0, "completion_tokens": 0}
         self.stopped_at_limit = False
-        self.llm = client or LLMClient(model, tools=registry.schemas(), on_text=self._on_text)
+        self.llm = client or LLMClient(
+            model, tools=registry.schemas(), stream=stream, on_text=self._on_text
+        )
         self.tool_context = tool_context or ToolContext(root=self.root)
         self.tool_context.root = self.root
         if self.tool_context.ui is None:
