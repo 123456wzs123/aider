@@ -9,12 +9,7 @@ import traceback
 from pathlib import Path
 
 from aider import __version__, models
-from aider.main import (
-    get_git_root,
-    load_dotenv_files,
-    register_litellm_models,
-    register_models,
-)
+from aider.main import get_git_root, load_dotenv_files, register_litellm_models, register_models
 from aider.repo import GitRepo
 
 from .llm import ContextWindowError
