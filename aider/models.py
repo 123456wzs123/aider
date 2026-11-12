@@ -1115,11 +1115,14 @@ def register_models(model_settings_fnames):
         if not os.path.exists(model_settings_fname):
             continue
 
-        if not Path(model_settings_fname).read_text().strip():
+        # Model settings are YAML written by users; always read as UTF-8. The
+        # default on Windows is the ANSI code page (e.g. GBK), which chokes on
+        # non-ASCII comments in an otherwise valid file.
+        if not Path(model_settings_fname).read_text(encoding="utf-8").strip():
             continue
 
         try:
-            with open(model_settings_fname, "r") as model_settings_file:
+            with open(model_settings_fname, "r", encoding="utf-8") as model_settings_file:
                 model_settings_list = yaml.safe_load(model_settings_file)
 
             for model_settings_dict in model_settings_list:

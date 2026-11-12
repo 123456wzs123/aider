@@ -58,6 +58,10 @@
 - 仓库映射：复用 RepoMap；**缓存写到 `~/.aider-agent/tags-cache/`，不污染仓库**
 - 会话：`~/.aider-agent/sessions/<repo-hash>/*.json`，`--continue` 恢复最近一次
 - 常用：`aider-agent -m "修复测试" --yes --model openai/...`
+- 模型默认值：`~/.aider-agent/config.yml` → `<repo>/.aider-agent/config.yml`（后者覆盖），
+  也支持 `AIDER_MODEL`；优先级 `--model` > 环境变量 > 配置文件。配置文件与经典 aider 的
+  `.aider.conf.yml` 分开，避免改 agent 默认值影响经典入口；键名与 CLI 参数对应
+  （如 `max-steps: 20`）。
 - 明确未做：插件、skills、子 agent、全屏 TUI、摘要压缩
 
 ### MCP 支持（2026-11-12）

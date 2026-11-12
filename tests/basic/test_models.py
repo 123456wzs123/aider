@@ -423,6 +423,47 @@ class TestModels(unittest.TestCase):
             except OSError:
                 pass
 
+    def test_register_models_reads_utf8(self):
+        """Settings files are UTF-8 even when the locale says otherwise.
+
+        Windows opens files with the ANSI code page (GBK on Chinese systems),
+        which used to raise UnicodeDecodeError on non-ASCII comments.
+        """
+        import tempfile
+
+        import yaml
+
+        from aider.models import MODEL_SETTINGS
+
+        test_settings = [
+            {
+                "name": "aider/utf8-test",
+                "extra_params": {"some_param": "中文值"},
+            },
+        ]
+
+        tmp = tempfile.mktemp(suffix=".yml")
+        try:
+            # Write bytes directly so the file is UTF-8 regardless of the
+            # default encoding of the machine running the tests.
+            content = "# 中文注释\n" + yaml.dump(test_settings, allow_unicode=True)
+            with open(tmp, "wb") as f:
+                f.write(content.encode("utf-8"))
+
+            loaded = register_models([tmp])
+            self.assertEqual(loaded, [tmp])
+
+            matched = [ms for ms in MODEL_SETTINGS if ms.name == "aider/utf8-test"]
+            self.assertEqual(len(matched), 1)
+            self.assertEqual(matched[0].extra_params["some_param"], "中文值")
+        finally:
+            import os
+
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
     @patch("aider.models.litellm.completion")
     @patch.object(Model, "token_count")
     def test_ollama_num_ctx_set_when_missing(self, mock_token_count, mock_completion):

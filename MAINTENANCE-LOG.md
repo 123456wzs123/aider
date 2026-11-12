@@ -277,3 +277,29 @@
 - **边界**：旧版 HTTP+SSE、OAuth、resources/prompts 当工具、server 自动重启、
   sampling/roots 未做；通过 MCP 改的文件不参与自动提交（提示词已说明）。
 
+
+### 2026-11-12 — 启动体验：模型默认值 + Windows UTF-8 配置读取
+
+- **试图解决**：`aider-agent` 每次启动都要手写 `--model`，否则回落到 `gpt-4o`；同时
+  Windows 上（默认代码页 GBK）读取含中文注释的 `~/.aider.model.settings.yml` 直接抛
+  `'gbk' codec can't decode byte ...`，用户无法启动。
+- **解决方式**：
+  - `aider/agent/cli.py` 改用 `configargparse`，读取 agent 自己的
+    `~/.aider-agent/config.yml` → `<repo>/.aider-agent/config.yml`（后者覆盖），并支持
+    `AIDER_*` 环境变量（如 `AIDER_MODEL`）；优先级 `--model` > 环境变量 > 配置文件。
+    键名与 CLI 参数一致（`max-steps: 20` 即 `--max-steps 20`）。
+    `ignore_unknown_config_file_keys=True` 让共享配置里的未知键被忽略而不是拒绝启动。
+  - `aider/models.py` 读取模型 settings 时显式 `encoding="utf-8"`（原先依赖 locale，
+    Windows 即 ANSI 代码页）。
+- **过程中发现并调整**：最初直接复用经典 aider 的 `~/.aider.conf.yml`，结果本地 3 个
+  `test_main`（模型优先级等）因家目录多出 `model:` 而失败——上游测试默认家目录没有配置。
+  为避免 agent 的默认值反向影响经典入口和其测试，改为 agent 专属配置文件；仓库级
+  `.aider.conf.yml` 不参与 agent 启动。
+- **验证结果**：
+  - `test_agent_cli` 新增配置文件、`AIDER_MODEL`、CLI 覆盖优先级、两级配置覆盖 4 个
+    用例；`test_models` 新增 UTF-8 中文 settings 回归用例
+  - 在 `PYTHONUTF8=0`（cp936）下加载用户真实 `~/.aider.model.settings.yml` 和
+    `~/.aider-agent/config.yml` 成功，`openai/deepseek-v4.1-flash` 生效
+  - black / flake8（CI 参数 `--line-length 100 --preview`）干净
+- **边界**：agent 仍不解析经典 aider 的 `--openai-api-base` 等模型端点选项，API base
+  继续走环境变量；配置文件需是合法 YAML。

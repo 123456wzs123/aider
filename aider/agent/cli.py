@@ -2,11 +2,12 @@
 
 from __future__ import annotations
 
-import argparse
 import os
 import sys
 import traceback
 from pathlib import Path
+
+import configargparse
 
 from aider import __version__, models
 from aider.main import (
@@ -28,12 +29,38 @@ from .tools import ToolContext, build_registry
 from .ui import AgentUI
 
 
-def build_parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(
+def default_config_files(root=None, home_dir=None):
+    """Agent config files, lowest priority first (configargparse: later wins).
+
+    ``~/.aider-agent/config.yml`` holds user defaults (e.g. ``model:``);
+    ``<repo>/.aider-agent/config.yml`` can override them per project. Keeping
+    these separate from ``.aider.conf.yml`` means the agent's defaults never
+    change classic aider's behaviour.
+    """
+    home = Path(home_dir) if home_dir else Path.home()
+    files = [home / ".aider-agent" / "config.yml"]
+    if root:
+        files.append(Path(root) / ".aider-agent" / "config.yml")
+    return [str(path) for path in files if Path(path).is_file()]
+
+
+def build_parser(default_config_files=None) -> configargparse.ArgumentParser:
+    parser = configargparse.ArgumentParser(
         prog="aider-agent",
         description="Tool-calling coding agent built on aider's edit engine.",
+        default_config_files=default_config_files or [],
+        config_file_parser_class=configargparse.YAMLConfigFileParser,
+        auto_env_var_prefix="AIDER_",
+        # Shared config files may hold keys this parser does not define; ignore
+        # those rather than refusing to start.
+        ignore_unknown_config_file_keys=True,
     )
-    parser.add_argument("--model", metavar="MODEL", default=None)
+    parser.add_argument(
+        "--model",
+        metavar="MODEL",
+        default=None,
+        help="model to use (default: 'model:' from ~/.aider-agent/config.yml or $AIDER_MODEL)",
+    )
     parser.add_argument("-m", "--message", default=None, help="run one task and exit")
     parser.add_argument("--yes", action="store_true", help="approve all shell commands")
     parser.add_argument("--dry-run", action="store_true", help="show actions without doing them")
@@ -63,8 +90,8 @@ def build_parser() -> argparse.ArgumentParser:
     return parser
 
 
-def parse_args(argv=None):
-    return build_parser().parse_args(argv)
+def parse_args(argv=None, config_files=None):
+    return build_parser(config_files).parse_args(argv)
 
 
 def with_paths(text: str, paths) -> str:
@@ -125,8 +152,8 @@ def _setup_mcp(registry, root, ui, args):
 
 
 def main(argv=None) -> int:
-    args = parse_args(argv)
     root = Path(get_git_root() or os.getcwd()).resolve()
+    args = parse_args(argv, default_config_files(root))
     os.chdir(root)
 
     history_path = Path.home() / ".aider-agent" / "history"

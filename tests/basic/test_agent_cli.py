@@ -1,10 +1,12 @@
 import contextlib
 import io
+import os
 import tempfile
 import unittest
 from pathlib import Path
+from unittest.mock import patch
 
-from aider.agent.cli import build_parser, parse_args, with_paths
+from aider.agent.cli import build_parser, default_config_files, parse_args, with_paths
 from aider.agent.prompt import build_system_prompt
 from aider.agent.repo_context import RepoContext
 from aider.agent.ui import AgentUI
@@ -38,6 +40,54 @@ class TestParser(unittest.TestCase):
         self.assertTrue(args.yes)
         self.assertEqual(args.max_steps, 5)
         self.assertTrue(args.no_stream)
+
+    def test_model_from_config_file(self):
+        import yaml
+
+        config = {
+            "model": "openai/deepseek-v4.1-flash",
+            "max-steps": 7,
+            # Classic aider keys the agent does not define must not break it.
+            "max-chat-history-tokens": 1024,
+        }
+        tmp = tempfile.mktemp(suffix=".yml")
+        try:
+            with open(tmp, "w", encoding="utf-8") as f:
+                yaml.safe_dump(config, f)
+
+            args = parse_args([], [tmp])
+            self.assertEqual(args.model, "openai/deepseek-v4.1-flash")
+            self.assertEqual(args.max_steps, 7)
+        finally:
+            try:
+                os.unlink(tmp)
+            except OSError:
+                pass
+
+    def test_model_from_env(self):
+        with patch.dict(os.environ, {"AIDER_MODEL": "openai/deepseek-v4.1-flash"}):
+            args = parse_args([])
+        self.assertEqual(args.model, "openai/deepseek-v4.1-flash")
+
+    def test_default_config_locations(self):
+        with tempfile.TemporaryDirectory() as home, tempfile.TemporaryDirectory() as root:
+            home_cfg = Path(home) / ".aider-agent" / "config.yml"
+            home_cfg.parent.mkdir()
+            home_cfg.write_text("model: home/model\n", encoding="utf-8")
+
+            repo_cfg = Path(root) / ".aider-agent" / "config.yml"
+            repo_cfg.parent.mkdir()
+            repo_cfg.write_text("model: repo/model\n", encoding="utf-8")
+
+            files = default_config_files(root, home_dir=home)
+            self.assertEqual(len(files), 2)
+            # Project config is read later, so it wins.
+            self.assertEqual(parse_args([], files).model, "repo/model")
+
+    def test_flag_beats_config_and_env(self):
+        with patch.dict(os.environ, {"AIDER_MODEL": "env/model"}):
+            args = parse_args(["--model", "flag/model"])
+        self.assertEqual(args.model, "flag/model")
 
     def test_help_mentions_name(self):
         self.assertIn("aider-agent", build_parser().format_help())
