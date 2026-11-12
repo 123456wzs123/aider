@@ -90,8 +90,8 @@
 DeepWiki/Context7（3/2 工具，Context7 实际调用成功）；真实模型（opencode-go
 `deepseek-v4.1-flash`）在同一轮里先用 filesystem MCP 列目录/读文件，再用 edit_file
 修复 `a - b` → `a + b`，run_command 得到 2 passed，自动提交并中文总结。双 venv 全量
-621/621 passed（5 skipped）。**CI 暂不可用**：GitHub 已对 fork 暂停 workflow 运行
-（见已知问题 9），push 不生成 run；需 maintainer 在网页 Actions 页手动启用。
+621/621 passed（5 skipped）；**CI 全绿**（pre-commit + Ubuntu/Windows 3.10–3.14，
+提交 `64d3117bc`）。
 
 ## 已知问题清单
 
@@ -114,11 +114,12 @@ DeepWiki/Context7（3/2 工具，Context7 实际调用成功）；真实模型�
    回环地址（localhost/127.x）已自动绕过代理。stdio server 继承完整环境变量。
 8. **旧 session 可能引用已删除的 MCP 工具**：`--continue` 恢复后模型若再调旧工具，
    会得到 unknown tool 观察，可继续对话修正；不影响启动。
-9. **fork 的 GitHub Actions 被暂停（2026-11-12）**：Actions 页提示
+9. **fork 的 GitHub Actions 曾暂停（2026-11-12，已恢复）**：Actions 页曾提示
    "Workflows are not currently being run on this fork due to the scale of GitHub Actions
-   usage. A repository maintainer can choose to re-enable these."。push 不再生成 run，
-   手动 rerun 也停留在 queued。需仓库维护者在网页 Actions 页点启用（UI-only，REST API
-   无对应端点）；启用后推一个空提交即可重新触发。本地双 venv 全绿，见 MAINTENANCE-LOG。
+   usage. A repository maintainer can choose to re-enable these."。需维护者在网页
+   Actions 页点启用（UI-only，REST API 无对应端点）。启用后 push 恢复触发；注意
+   **空提交不会触发带 `paths-ignore` 的 Ubuntu/Windows 矩阵**，需带一个真实文件变更。
+   最终 CI 全绿（提交 `64d3117bc`）。
 
 ## 候选池
 
