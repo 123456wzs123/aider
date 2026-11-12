@@ -266,8 +266,11 @@
     列目录/读 `calc.py`，再用 edit_file 修 `a - b` → `a + b`，run_command 得到
     `2 passed`，自动提交（中文任务名）并中文总结
   - 双 venv 全量：**3.13 = 621 passed, 5 skipped, 67 subtests passed（含 27 个新
-    MCP 用例）**；**3.14 = 621 passed, 5 skipped, 67 subtests passed**；退出码均 0；
-    CI 见下
+    MCP 用例）**；**3.14 = 621 passed, 5 skipped, 67 subtests passed**；退出码均 0
+  - **CI 受限**：GitHub 已对 fork 暂停 workflow 运行（Actions 页提示
+    "Workflows are not currently being run on this fork due to the scale of GitHub
+    Actions usage"），push 不生成 run，手动 rerun 停在 queued；需在网页 Actions 页
+    手动启用。已在本地用 isort 5.12 / black 25.1 / flake8 / codespell 对齐 CI 检查
 - **边界**：旧版 HTTP+SSE、OAuth、resources/prompts 当工具、server 自动重启、
   sampling/roots 未做；通过 MCP 改的文件不参与自动提交（提示词已说明）。
 
