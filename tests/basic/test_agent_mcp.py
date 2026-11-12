@@ -11,7 +11,12 @@ from pathlib import Path
 from unittest import mock
 
 from aider.agent.cli import parse_args
-from aider.agent.mcp import MCPManager, ServerConfig, load_server_configs, make_tool_name
+from aider.agent.mcp import (
+    MCPManager,
+    ServerConfig,
+    load_server_configs,
+    make_tool_name,
+)
 from aider.agent.mcp.client import render_result
 from aider.agent.permissions import PermissionPolicy
 from aider.agent.prompt import build_system_prompt
