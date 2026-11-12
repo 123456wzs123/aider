@@ -18,6 +18,7 @@ from aider.main import (
 from aider.repo import GitRepo
 
 from .llm import ContextWindowError
+from .mcp import MCPManager, load_server_configs
 from .permissions import PermissionPolicy
 from .prompt import build_system_prompt
 from .repo_context import ConsoleIO, RepoContext, current_branch
@@ -40,6 +41,20 @@ def build_parser() -> argparse.ArgumentParser:
     parser.add_argument("--map-tokens", type=int, default=None, help="repo map budget (0 disables)")
     parser.add_argument("--no-auto-commits", action="store_true")
     parser.add_argument("--no-stream", action="store_true")
+    parser.add_argument(
+        "--mcp-config",
+        action="append",
+        default=[],
+        metavar="PATH",
+        help="extra MCP config file (repeatable)",
+    )
+    parser.add_argument("--no-mcp", action="store_true", help="do not load MCP servers")
+    parser.add_argument("--ask-mcp", action="store_true", help="ask before each MCP tool call")
+    parser.add_argument(
+        "--trust-project-mcp",
+        action="store_true",
+        help="start MCP servers from project configs without asking",
+    )
     parser.add_argument("--continue", dest="continue_session", action="store_true")
     parser.add_argument("--plain", action="store_true", help="no colors, boxes or glyphs")
     parser.add_argument("--verbose", action="store_true")
@@ -63,6 +78,50 @@ def _try_repo(io, root):
         return GitRepo(io, None, str(root))
     except Exception:
         return None
+
+
+def _setup_mcp(registry, root, ui, args):
+    if args.no_mcp:
+        return None
+
+    configs, warnings = load_server_configs(root, args.mcp_config)
+    for warning in warnings:
+        ui.warning(warning)
+    if args.ask_mcp:
+        for cfg in configs:
+            cfg.approval = "ask"
+    if not configs:
+        if args.mcp_config:
+            ui.warning("no MCP servers found in the given config")
+        return None
+
+    manager = MCPManager(configs, root=root, ui=ui, verbose=args.verbose)
+    if any(cfg.project for cfg in configs if not cfg.disabled):
+        ui.info("project MCP config found; each server needs approval")
+
+    def approve_project(cfg):
+        if args.yes or args.trust_project_mcp:
+            return True
+        return ui.confirm_mcp_server(cfg)
+
+    try:
+        statuses = manager.connect_all(project_approver=approve_project)
+    except BaseException:
+        manager.close()
+        raise
+    connected = [status for status in statuses if status.connected]
+    for status in statuses:
+        if status.error:
+            ui.warning(f"mcp {status.name}: {status.error}")
+    if connected:
+        manager.register_tools(registry)
+        summary = ", ".join(f"{status.name} ({status.tools})" for status in connected)
+        ui.info(f"mcp connected: {summary}")
+        if args.verbose:
+            for name in registry.names():
+                if name.startswith("mcp__"):
+                    ui.info(f"  {name}")
+    return manager
 
 
 def main(argv=None) -> int:
@@ -91,6 +150,8 @@ def main(argv=None) -> int:
 
     context = RepoContext(root, model, ui=ui, map_tokens=args.map_tokens)
     registry = build_registry()
+    mcp_manager = _setup_mcp(registry, root, ui, args)
+    mcp_servers = mcp_manager.connected_names() if mcp_manager is not None else None
     permissions = PermissionPolicy(yes=args.yes, dry_run=args.dry_run)
     tool_context = ToolContext(
         root=root,
@@ -103,7 +164,7 @@ def main(argv=None) -> int:
     runtime = AgentRuntime(
         model,
         registry,
-        build_system_prompt(root),
+        build_system_prompt(root, mcp_servers=mcp_servers),
         ui=ui,
         root=root,
         max_steps=args.max_steps,
@@ -130,6 +191,7 @@ def main(argv=None) -> int:
         "search/replace",
         runtime.auto_commits,
         "yolo" if args.yes else "ask",
+        mcp=mcp_manager.connected_count() if mcp_manager is not None else 0,
     )
 
     def ensure_map():
@@ -148,16 +210,19 @@ def main(argv=None) -> int:
                 ui.assistant_end()
             session.save(runtime.blocks, model=model.name)
             return 0 if not runtime.stopped_at_limit else 2
-        return _repl(runtime, context, session, ui, model, args, ensure_map)
+        return _repl(runtime, context, session, ui, model, args, ensure_map, mcp_manager)
     except KeyboardInterrupt:
         ui.info("cancelled")
         return 130
     except ContextWindowError as exc:
         ui.error(f"context window exceeded: {exc}")
         return 1
+    finally:
+        if mcp_manager is not None:
+            mcp_manager.close()
 
 
-def _repl(runtime, context, session, ui, model, args, ensure_map) -> int:
+def _repl(runtime, context, session, ui, model, args, ensure_map, mcp_manager=None) -> int:
     while True:
         try:
             line = ui.read_input()
@@ -185,8 +250,17 @@ def _repl(runtime, context, session, ui, model, args, ensure_map) -> int:
                 runtime.repo_map = context.repo_map()
                 ui.info("repo map updated" if runtime.repo_map else "repo map unavailable")
                 continue
+            if command == "/mcp":
+                lines = (
+                    mcp_manager.status_lines()
+                    if mcp_manager is not None
+                    else ["no MCP servers configured"]
+                )
+                for line in lines:
+                    ui.info(line)
+                continue
             if command == "/help":
-                ui.info("commands: /exit /clear /map /help")
+                ui.info("commands: /exit /clear /map /mcp /help")
                 ui.info("tools: " + ", ".join(runtime.registry.names()))
                 continue
             ui.warning(f"unknown command: {command}")

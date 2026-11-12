@@ -58,12 +58,39 @@
 - 仓库映射：复用 RepoMap；**缓存写到 `~/.aider-agent/tags-cache/`，不污染仓库**
 - 会话：`~/.aider-agent/sessions/<repo-hash>/*.json`，`--continue` 恢复最近一次
 - 常用：`aider-agent -m "修复测试" --yes --model openai/...`
-- 明确未做：MCP、插件、skills、子 agent、全屏 TUI、摘要压缩
+- 明确未做：插件、skills、子 agent、全屏 TUI、摘要压缩
 
-验证：76 个 agent 测试；真实模型（opencode-go `deepseek-v4.1-flash`）在临时仓库完成
-读文件 → 跑 pytest → 看到失败 → 编辑 → 重跑 → 自动提交 → 中文总结。样例提交消息：
-`运行测试并修复所有失败，让全部测试通过`。双 venv 全量 593/594 passed；CI
-pre-commit + Ubuntu/Windows 3.10–3.14 全绿（提交 `6575e93`）。
+### MCP 支持（2026-11-12）
+
+- 传输：**stdio**（npx/uvx/python 等本地子进程）+ **Streamable HTTP**（远程 URL，
+  支持 `Mcp-Session-Id`、`MCP-Protocol-Version`、JSON/SSE 响应）；旧版 HTTP+SSE
+  与 OAuth 未做
+- 配置：兼容 Claude Desktop 的 `{"mcpServers": {...}}`，字段 `command/args/env/cwd`
+  或 `url/headers`，可选 `timeout`、`disabled`、`approval`；`${VAR}` 从环境变量展开。
+  发现顺序（同名后者覆盖）：`~/.aider-agent/mcp.json` → `<repo>/.aider-agent/mcp.json`
+  → `<repo>/.mcp.json` → `--mcp-config`
+- 工具：服务端 `tools/list` 自动注册为 `mcp__<server>__<tool>`（清洗并去重，≤64 字符），
+  显示成 `server · tool`；调用结果按 content 块渲染（image/audio/resource 用占位符），
+  `isError` 回传为失败观察
+- 权限：**默认放行**（用户装 MCP 就是要用的）；`--ask-mcp` 或服务端配置
+  `"approval": "ask"` / `["tool", ...]` 改为逐次询问（y/n/a，a 记住本会话）；
+  `--dry-run` 只打印；`--yes` 全放行
+- 项目配置（仓库里的 `.mcp.json` 等）默认需要逐 server 确认，`--trust-project-mcp`
+  或 `--yes` 跳过确认；`--mcp-config` 视为可信
+- 故障隔离：单 server 连接失败只告警不退出；`/mcp` 查看状态与工具数；stderr 尾部
+  随错误回传；退出时杀进程树（Windows `taskkill /T`，POSIX `killpg`）
+- 例：`{"mcpServers": {"fs": {"command": "npx", "args": ["-y",
+  "@modelcontextprotocol/server-filesystem", "."]}, "docs": {"url":
+  "https://mcp.context7.com/mcp"}}}`
+- 边界：通过 MCP 改的文件不参与自动提交（模型提示词已说明，代码改动仍建议 edit_file）；
+  旧版 SSE、OAuth、resources/prompts 当工具、自动重启均未做
+
+验证：103 个 agent 测试（76 壳 + 27 MCP）；真实服务器冒烟：`npx
+@modelcontextprotocol/server-filesystem`（16 工具，真实读目录）与远程
+DeepWiki/Context7（3/2 工具，Context7 实际调用成功）；真实模型（opencode-go
+`deepseek-v4.1-flash`）在同一轮里先用 filesystem MCP 列目录/读文件，再用 edit_file
+修复 `a - b` → `a + b`，run_command 得到 2 passed，自动提交并中文总结。双 venv 全量
+621/621 passed（5 skipped）；CI 见下。
 
 ## 已知问题清单
 
@@ -79,6 +106,13 @@ pre-commit + Ubuntu/Windows 3.10–3.14 全绿（提交 `6575e93`）。
    目前没有自动清理策略；长期使用需手动删旧 session。
 5. **run_command 在 Windows 走 cmd.exe**：模型若输出 bash 语法会先失败，需自行读错误
    再修正；系统提示已声明平台 shell。
+6. **项目级 MCP 配置默认需要确认**：直接跑 `aider-agent -m ...` 时若仓库自带
+   `.mcp.json`，非交互环境会跳过（除非 `--trust-project-mcp` / `--yes`）；这是防止
+   克隆来的仓库自动执行任意命令。
+7. **远程 MCP 走系统代理**：`HTTPS_PROXY` 配了但代理没开时，远程 server 会连接失败；
+   回环地址（localhost/127.x）已自动绕过代理。stdio server 继承完整环境变量。
+8. **旧 session 可能引用已删除的 MCP 工具**：`--continue` 恢复后模型若再调旧工具，
+   会得到 unknown tool 观察，可继续对话修正；不影响启动。
 
 ## 候选池
 

@@ -2,6 +2,7 @@
 
 from __future__ import annotations
 
+import json
 import os
 import sys
 import time
@@ -43,6 +44,14 @@ def _fmt_tokens(count: int) -> str:
     return str(count)
 
 
+def _json_brief(value, limit=600) -> str:
+    try:
+        text = json.dumps(value if value is not None else {}, ensure_ascii=False, sort_keys=True)
+    except (TypeError, ValueError):
+        text = str(value)
+    return text if len(text) <= limit else text[: limit - 3] + "…"
+
+
 class AgentUI:
     def __init__(
         self,
@@ -70,14 +79,15 @@ class AgentUI:
 
     # ---------------------------------------------------------------- chrome
 
-    def header(self, repo, branch, model, edit_format, auto_commit, permissions):
+    def header(self, repo, branch, model, edit_format, auto_commit, permissions, mcp=0):
+        mcp_note = f" {self.glyphs['bullet']} mcp {mcp}" if mcp else ""
         if self.plain:
             suffix = f" @ {branch}" if branch else ""
             print(f"aider-agent {self.glyphs['bullet']} {repo}{suffix}")
             print(
                 f"{model} {self.glyphs['bullet']} {edit_format} {self.glyphs['bullet']} "
                 f"auto-commit {'on' if auto_commit else 'off'} {self.glyphs['bullet']} "
-                f"{permissions}"
+                f"{permissions}{mcp_note}"
             )
             return
 
@@ -89,7 +99,8 @@ class AgentUI:
         body.append("\n")
         body.append(
             f"{model} {self.glyphs['bullet']} {edit_format} {self.glyphs['bullet']} "
-            f"auto-commit {'on' if auto_commit else 'off'} {self.glyphs['bullet']} {permissions}",
+            f"auto-commit {'on' if auto_commit else 'off'} {self.glyphs['bullet']} "
+            f"{permissions}{mcp_note}",
             style="dim",
         )
         body.append("\n/help for commands · Ctrl-C to cancel", style="dim")
@@ -168,18 +179,19 @@ class AgentUI:
         self._pending_tool = None
 
         ok = bool(payload.get("ok"))
+        display = self.pretty_name(name)
         args_summary = self._args_summary(name, arguments)
         summary = self._result_summary(name, payload)
 
         if self.plain:
-            print(f"{self.glyphs['tool']} {name}({args_summary}) {duration:.1f}s")
+            print(f"{self.glyphs['tool']} {display}({args_summary}) {duration:.1f}s")
             prefix = self.glyphs["ok"] if ok else self.glyphs["fail"]
             print(f"{self.glyphs['result']} {prefix} {summary}")
             return
 
         call_line = Text()
         call_line.append(f"{self.glyphs['tool']} ", style="cyan")
-        call_line.append(name, style="bold cyan")
+        call_line.append(display, style="bold cyan")
         call_line.append(f"({args_summary})", style="dim")
         call_line.append(f"  {duration:.1f}s", style="dim")
         self.console.print(call_line)
@@ -209,6 +221,59 @@ class AgentUI:
         self.info(f"{self.glyphs['ok']} committed {len(files)} file(s): {names}")
 
     # ------------------------------------------------------------ confirmation
+
+    def confirm_tool(self, server: str, tool: str, arguments: dict) -> str:
+        args_text = _json_brief(arguments)
+        if self.plain:
+            try:
+                bullet = self.glyphs["bullet"]
+                return input(f"run MCP {server} {bullet} {tool} {args_text} [y/n/a] ")
+            except (EOFError, KeyboardInterrupt):
+                return "n"
+
+        body = Text()
+        body.append(f"{server} · {tool}", style="bold")
+        body.append(f"\n{args_text}", style="dim")
+        self.console.print(
+            Panel(
+                body,
+                title="MCP tool",
+                box=box.ROUNDED,
+                border_style="yellow",
+                padding=(0, 1),
+            )
+        )
+        try:
+            return input("[y] run  [n] skip  [a] always this tool: ")
+        except (EOFError, KeyboardInterrupt):
+            return "n"
+
+    def confirm_mcp_server(self, config) -> bool:
+        target = config.target()
+        if self.plain:
+            try:
+                answer = input(f"start project MCP server '{config.name}'? {target} [y/n] ")
+            except (EOFError, KeyboardInterrupt):
+                return False
+            return answer.strip().lower().startswith("y")
+
+        body = Text()
+        body.append(config.name, style="bold")
+        body.append(f"\n{target}", style="dim")
+        self.console.print(
+            Panel(
+                body,
+                title="project MCP server",
+                box=box.ROUNDED,
+                border_style="yellow",
+                padding=(0, 1),
+            )
+        )
+        try:
+            answer = input("[y] start  [n] skip: ")
+        except (EOFError, KeyboardInterrupt):
+            return False
+        return answer.strip().lower().startswith("y")
 
     def confirm_command(self, command: str) -> str:
         if self.plain:
@@ -254,8 +319,17 @@ class AgentUI:
 
     # ----------------------------------------------------------------- helpers
 
+    def pretty_name(self, name: str) -> str:
+        if name.startswith("mcp__"):
+            parts = name.split("__", 2)
+            if len(parts) == 3 and parts[1] and parts[2]:
+                return f"{parts[1]} {self.glyphs['bullet']} {parts[2]}"
+        return name
+
     @staticmethod
     def _args_summary(name: str, arguments: dict) -> str:
+        if name.startswith("mcp__"):
+            return _json_brief(arguments, limit=100)
         if name == "read_file":
             path = arguments.get("path", "")
             start = arguments.get("start_line")
@@ -282,6 +356,15 @@ class AgentUI:
     @staticmethod
     def _result_summary(name: str, payload: dict) -> str:
         error = payload.get("error")
+        if name.startswith("mcp__"):
+            if payload.get("dry_run"):
+                return "dry-run"
+            if payload.get("skipped"):
+                return "declined by user"
+            if not payload.get("ok"):
+                return str(error or "failed").splitlines()[0][:120]
+            text = str(payload.get("content") or "").strip()
+            return text.splitlines()[0][:100] if text else "ok"
         if name == "run_command":
             if payload.get("skipped"):
                 return "declined by user"

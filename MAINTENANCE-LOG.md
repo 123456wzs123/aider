@@ -221,3 +221,53 @@
 > CI 收尾：`6575e93` 为功能完成点；此前 `c48081dc7` 的 apt 加固、`6575e93` 的 session
 > 命名修复合并后，fork `main` 共 35 个提交领先上游。
 
+### 2026-11-12 — aider-agent 接入 MCP（stdio + Streamable HTTP）
+
+- **试图解决**：agent 壳只有 6 个内置工具，用户已装好的 MCP server（文档、搜索、数据库、
+  浏览器等）一个都用不上。目标是在不改 agent 循环、不引入新依赖的前提下，把 MCP 工具
+  注册进现有 `ToolRegistry`，像 Claude Code 一样直接调用。
+- **解决方式**：新增 `aider/agent/mcp/` 子包（config / transport / client / manager），
+  自实现 JSON-RPC 2.0 客户端：
+  - `initialize`（protocolVersion 2025-06-18）→ `notifications/initialized` →
+    `tools/list`（cursor 分页、按名去重）→ `tools/call`；忽略服务端通知，对
+    sampling/roots 等请求回 -32601；**不依赖 `mcp` SDK**
+  - **stdio**：子进程 + stdout 读线程 + 队列；stderr 环形缓冲随错误回传；超时、EOF、
+    非零退出都转成工具错误观察；关闭时杀进程树（POSIX `killpg` / Windows
+    `taskkill /T`）
+  - **Streamable HTTP**：单 endpoint POST，`Accept: application/json,
+    text/event-stream`，透传 `Mcp-Session-Id`、`MCP-Protocol-Version`，支持 JSON 与
+    SSE 两种响应；回环地址绕过系统代理；关闭时 DELETE 会话（失败忽略）
+  - **配置**兼容 Claude Desktop 的 `mcpServers`：`command/args/env/cwd` 或
+    `url/headers`，可选 `timeout`/`disabled`/`approval`；`${VAR}`、`%VAR%` 从环境
+    变量展开；发现顺序全局 → 项目两处 → `--mcp-config`，同名后者覆盖；仓库里的
+    项目配置逐 server 确认（`--trust-project-mcp`/`--yes` 跳过）
+  - **工具**注册为 `mcp__<server>__<tool>`（清洗、去重、≤64 字符），UI 显示
+    `server · tool`；默认放行，`--ask-mcp` 或 `approval: "ask"`/工具名列表改用
+    y/n/a 询问，`a` 记住本会话
+  - CLI 新增 `--mcp-config` / `--no-mcp` / `--ask-mcp` / `--trust-project-mcp`，
+    REPL 新增 `/mcp`；单 server 连接失败只告警，不阻塞其余 server
+- **过程中发现并修复**：
+  - Windows 下 `npx` 是 `.cmd`，Popen 参数列表会被 MSVC 规则写成 `\"`，cmd.exe 不认，
+    报“文件名、目录名或卷标语法不正确” → 改为 `shell=True` 的命令行并自行给 cmd
+    元字符加引号；用真实 filesystem server 验证通过
+  - cmd.exe 错误输出是 OEM 代码页（中文 GBK），按 UTF-8 解码成乱码 → stderr 依次尝试
+    UTF-8 / locale / mbcs
+  - HTTP 测试里 `dict(headers)` 大小写敏感导致误判 → 测试统一按小写键断言
+  - `target()` 会把 URL 里的 API key 打进确认面板 → 去掉 query/fragment
+  - `isError` 结果同时塞 `error` 与 `content` 造成重复 → 失败时只保留 `error`
+  - Ctrl-C 中断 server 连接时子进程可能泄漏 → `_setup_mcp` 捕获 BaseException，
+    先 close 再抛出
+- **验证结果**：
+  - 新增 27 个 MCP 测试（stdio 假 server、本地 HTTP/SSE server、配置合并/展开、权限、
+    UI/CLI），全绿；black/flake8/isort 干净
+  - 真实服务器：`npx @modelcontextprotocol/server-filesystem`（16 工具，真实列目录）、
+    DeepWiki（3 工具）、Context7（2 工具，`resolve-library-id` 实际调用成功）
+  - 真实模型冒烟：opencode-go `deepseek-v4.1-flash` 在临时仓库先用 filesystem MCP
+    列目录/读 `calc.py`，再用 edit_file 修 `a - b` → `a + b`，run_command 得到
+    `2 passed`，自动提交（中文任务名）并中文总结
+  - 双 venv 全量：**3.13 = 621 passed, 5 skipped, 67 subtests passed（含 27 个新
+    MCP 用例）**；**3.14 = 621 passed, 5 skipped, 67 subtests passed**；退出码均 0；
+    CI 见下
+- **边界**：旧版 HTTP+SSE、OAuth、resources/prompts 当工具、server 自动重启、
+  sampling/roots 未做；通过 MCP 改的文件不参与自动提交（提示词已说明）。
+
